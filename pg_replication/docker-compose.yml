@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  master:
+    image: bitnami/postgresql:15
+    container_name: pg_master
+    environment:
+      - POSTGRESQL_USERNAME=master_pg
+      - POSTGRESQL_PASSWORD=master_pg
+      - POSTGRESQL_DATABASE=my_database
+      - POSTGRESQL_REPLICATION_MODE=master
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_SYNCHRONOUS_COMMIT_MODE=on
+      - POSTGRESQL_NUM_SYNCHRONOUS_REPLICAS=1
+    ports:
+      - 5435:5432
+    volumes:
+      - 'pg_master_db:/bitnami/postgresql'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U master_pg"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+  slave:
+    image: bitnami/postgresql:15
+    container_name: pg_slave
+    environment:
+      - POSTGRESQL_USERNAME=master_pg
+      - POSTGRESQL_PASSWORD=master_pg
+      - POSTGRESQL_DATABASE=my_database
+      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_MASTER_HOST=10.50.1.10
+      - POSTGRESQL_MASTER_PORT_NUMBER=5435
+      - POSTGRESQL_MASTER_USER=master_pg
+      - POSTGRESQL_MASTER_PASSWORD=master_pg
+    ports:
+      - 5436:5432
+    volumes:
+      - 'pg_slave_db:/bitnami/postgresql'
+    depends_on:
+      - master
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U master_pg"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+volumes:
+  pg_master_db:
+  pg_slave_db:

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  master:
+    image: bitnami/postgresql:15
+    container_name: pg_failover_master
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=master
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_USERNAME=master_pg
+      - POSTGRESQL_PASSWORD=master_pg
+      - POSTGRESQL_DATABASE=my_database
+    ports:
+      - 5437:5432
+    volumes:
+      - pg_failover_master_data:/bitnami/postgresql/data
+    networks:
+      - pg_cluster
+    user: 1001:1001
+
+  slave:
+    image: bitnami/postgresql:15
+    container_name: pg_failover_slave
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_MASTER_HOST=master
+      - POSTGRESQL_MASTER_PORT_NUMBER=5437
+      - POSTGRESQL_USERNAME=slave_pg
+      - POSTGRESQL_PASSWORD=slave_pg
+      - POSTGRESQL_DATABASE=my_database
+    ports:
+      - 5438:5432
+    volumes:
+      - pg_failover_slave_data:/bitnami/postgresql/data
+    depends_on:
+      - master
+    networks:
+      - pg_cluster
+    user: 1001:1001
+
+  failover:
+    image: bitnami/postgresql-repmgr:latest
+    container_name: pg_failover
+    environment:
+      - REPMGR_NODE_NAME=failover
+      - REPMGR_PARTNER_NODES=master:5432,slave:5432
+      - REPMGR_PRIMARY_HOST=master
+      - REPMGR_PASSWORD=repmgrpass
+    volumes:
+      - pg_failover_data:/bitnami/postgresql-repmgr
+    command: >
+      bash -c "
+        /opt/bitnami/scripts/postgresql-repmgr/entrypoint.sh repmgrd &
+        sleep 10
+        repmgr standby follow
+      "
+    depends_on:
+      - master
+      - slave
+    networks:
+      - pg_cluster
+    user: 1001:1001
+
+networks:
+  pg_cluster:
+
+volumes:
+  pg_failover_master_data:
+    driver: local
+  pg_failover_slave_data:
+    driver: local
+  pg_failover_data:
+    driver: local
